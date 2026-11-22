@@ -1,9 +1,21 @@
+import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { Command } from "commander";
 import { detectProject } from "./detect/index.js";
 import { createNodeFsProbe, isSafeRelativePath } from "./fs.js";
 import { applyPlan, buildPlan, renderFlake } from "./plan.js";
 import type { Plan, ProjectInfo } from "./types.js";
+
+export function packageVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+      version?: unknown;
+    };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 export interface GenerateInput {
   dir: string;
@@ -95,7 +107,7 @@ export function createProgram(): Command {
   program
     .name("flake-generate")
     .description("Generate a clean flake.nix from a project's lockfiles and markers")
-    .version("0.1.0")
+    .version(packageVersion())
     .argument("[dir]", "project directory", ".")
     .option("-o, --output <path>", "output file relative to dir", "flake.nix")
     .option("-f, --force", "overwrite existing files")

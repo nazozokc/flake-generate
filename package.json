@@ -6,6 +6,10 @@
   "bin": {
     "flake-generate": "dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nazozokc/flake-generate.git"
+  },
   "files": [
     "dist"
   ],

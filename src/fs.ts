@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { lstat, open, rename, unlink } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { chmod, lstat, mkdir, open, rename, unlink } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import type { FsProbe } from "./types.js";
 
 export function createNodeFsProbe(root: string): FsProbe {
@@ -47,13 +47,19 @@ export async function writeFileAtomic(
     throw new Error(`${relativePath} is not a regular file; refusing to write`);
   }
 
-  const temp = join(dirname(target), `.${relativePath}.${process.pid}.${randomUUID()}.tmp`);
+  const mode = existing ? existing.mode & 0o777 : 0o644;
+  await mkdir(dirname(target), { recursive: true });
+  const temp = join(
+    dirname(target),
+    `.${basename(relativePath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
   const handle = await open(temp, "wx", 0o600);
   try {
     await handle.writeFile(content, "utf8");
   } finally {
     await handle.close();
   }
+  await chmod(temp, mode);
 
   try {
     await rename(temp, target);

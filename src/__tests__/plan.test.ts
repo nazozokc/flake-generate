@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +58,36 @@ describe("applyPlan", () => {
 
     expect(await applyPlan(dir, plan)).toEqual(["flake.nix"]);
     expect(await readFile(join(dir, "flake.nix"), "utf8")).toBe("flake contents\n");
+  });
+
+  it("uses 644 for new files and preserves an existing mode", async () => {
+    const dir = await tempDir();
+    const plan = buildPlan(
+      { name: "demo", detections: [], warnings: [] },
+      "flake contents\n",
+      { output: "flake.nix", force: false, envrc: false },
+      fakeProbe({}),
+    );
+
+    await applyPlan(dir, plan);
+    expect((await stat(join(dir, "flake.nix"))).mode & 0o777).toBe(0o644);
+
+    await chmod(join(dir, "flake.nix"), 0o600);
+    await applyPlan(dir, plan);
+    expect((await stat(join(dir, "flake.nix"))).mode & 0o777).toBe(0o600);
+  });
+
+  it("creates parent directories for a nested output path", async () => {
+    const dir = await tempDir();
+    const plan = buildPlan(
+      { name: "demo", detections: [], warnings: [] },
+      "flake contents\n",
+      { output: "config/flake.nix", force: false, envrc: false },
+      fakeProbe({}),
+    );
+
+    expect(await applyPlan(dir, plan)).toEqual(["config/flake.nix"]);
+    expect(await readFile(join(dir, "config/flake.nix"), "utf8")).toBe("flake contents\n");
   });
 
   it("refuses a symlink destination even with force", async () => {
