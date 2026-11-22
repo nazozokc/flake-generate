@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { packageVersion, parseArguments } from "../cli.js";
+import { CliError, packageVersion, parseArguments, usage } from "../cli.js";
 
 describe("packageVersion", () => {
   it("follows package.json so releases never drift", () => {
@@ -59,5 +59,22 @@ describe("parseArguments", () => {
     expect(() => parseArguments(["--bogus"])).toThrow("unknown option: --bogus");
     expect(() => parseArguments(["one", "two"])).toThrow("only one project directory");
     expect(() => parseArguments(["--output"])).toThrow("--output requires a path");
+  });
+
+  it("suggests the closest known option for a typo", () => {
+    try {
+      parseArguments(["--forcee"]);
+      throw new Error("expected an error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError);
+      if (error instanceof CliError) expect(error.hint).toBe("did you mean --force?");
+    }
+  });
+});
+
+describe("usage", () => {
+  it("documents examples and exit codes", () => {
+    expect(usage()).toContain("Examples:");
+    expect(usage()).toContain("Exit codes:");
   });
 });

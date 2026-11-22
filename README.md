@@ -47,6 +47,20 @@ node dist/index.js --check    # 生成結果が古ければ失敗（CI 向け）
 | 1      | 実行時エラー、または `--check` で差分あり |
 | 2      | 引数・オプションの指定が不正              |
 
+### 出力例
+
+```text
+◇ flake-generate v0.1.0 · /path/to/app
+
+◆ Node.js         nodejs_24, pnpm, typescript
+◆ Rust            cargo, clippy, rust-analyzer, rustc, rustfmt
+
+✓ wrote flake.nix
+  2 ecosystems · 8 packages · 1 file
+```
+
+`--dry-run` と `--check` は unified diff を表示する。色は TTY 時のみで、`NO_COLOR` で無効化できる。
+
 ## 検出ルール
 
 | マーカー                                                           | 入るパッケージ                                                   |

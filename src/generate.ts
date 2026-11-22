@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
+import { CliError } from "./args.js";
 import { detectProject } from "./detect/index.js";
 import { createNodeFsProbe, isSafeRelativePath } from "./fs.js";
 import { applyPlan, buildPlan } from "./plan.js";
@@ -24,13 +25,13 @@ export interface GenerateResult {
 
 export async function generate(input: GenerateInput): Promise<GenerateResult> {
   if (!isSafeRelativePath(input.output)) {
-    throw new Error(`invalid output path: ${input.output} (must be relative without '..')`);
+    throw new CliError(`invalid output path: ${input.output}`, "use a relative path without '..'");
   }
 
   const root = resolve(input.dir);
   const target = await stat(root).catch(() => undefined);
   if (!target?.isDirectory()) {
-    throw new Error(`not a directory: ${input.dir}`);
+    throw new CliError(`not a directory: ${input.dir}`, "pass an existing project directory");
   }
 
   const probe = createNodeFsProbe(root);
