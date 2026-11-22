@@ -1,5 +1,4 @@
 import { assertWritableTarget, writeFileAtomic } from "./fs.js";
-import { renderFlake } from "./render/flake.js";
 import type { BuildPlanOptions, FsProbe, Plan, ProjectInfo, WriteAction } from "./types.js";
 
 export function buildPlan(
@@ -51,5 +50,3 @@ export async function applyPlan(root: string, plan: Plan): Promise<string[]> {
   }
   return written;
 }
-
-export { renderFlake };
