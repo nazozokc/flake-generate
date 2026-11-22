@@ -12,7 +12,7 @@ check_case() (
   printf '%s\n' "$value" > "$dir/$marker"
   for extra in "$@"; do touch "$dir/$extra"; done
 
-  node dist/index.js "$dir" > /dev/null
+  node dist/index.js "$dir" > /dev/null 2>&1
   if ! nix eval --no-write-lock-file "$dir#devShells.x86_64-linux.default.nativeBuildInputs" \
     --json > /dev/null 2> "$dir/error"; then
     echo "FAILED: $name" >&2
@@ -35,7 +35,7 @@ printf '21\n' > "$fixture/.java-version"
 printf 'elixir: "~> 1.18"\n' > "$fixture/mix.exs"
 printf '{"packageManager":"pnpm@12.9.0"}' > "$fixture/package.json"
 
-node dist/index.js "$fixture" > /dev/null
+node dist/index.js "$fixture" > /dev/null 2>&1
 nix eval --no-write-lock-file "$fixture#devShells.x86_64-linux.default.nativeBuildInputs" \
   --json > /dev/null
 

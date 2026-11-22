@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { generate } from "../cli.js";
 import { createNodeFsProbe } from "../fs.js";
-import { applyPlan, buildPlan, diffPlan } from "../plan.js";
+import { applyPlan, buildPlan, diffPlan, diffText } from "../plan.js";
 import type { Plan } from "../types.js";
 import { fakeProbe } from "./helpers.js";
 
@@ -62,6 +62,33 @@ describe("diffPlan", () => {
     ]);
     expect(diffPlan(plan, fakeProbe({ "flake.nix": "new", ".envrc": "use flake\n" }))).toEqual([]);
     expect(diffPlan(plan, fakeProbe({ ".envrc": "use flake\n" }))).toEqual(["flake.nix"]);
+  });
+});
+
+describe("diffText", () => {
+  it("renders a new file as additions from /dev/null", () => {
+    expect(diffText("flake.nix", undefined, "a\nb\n")).toBe(
+      "--- /dev/null\n+++ b/flake.nix\n@@ -1,0 +1,2 @@\n+a\n+b",
+    );
+  });
+
+  it("renders a changed line with context", () => {
+    expect(diffText("flake.nix", "a\nold\nc\n", "a\nnew\nc\n")).toBe(
+      "--- a/flake.nix\n+++ b/flake.nix\n@@ -1,3 +1,3 @@\n a\n-old\n+new\n c",
+    );
+  });
+
+  it("returns an empty string when the contents match", () => {
+    expect(diffText("flake.nix", "same\n", "same\n")).toBe("");
+  });
+
+  it("keeps two context lines around a change", () => {
+    const before = `${Array.from({ length: 10 }, (_, index) => `line ${index}`).join("\n")}\n`;
+    const after = before.replace("line 5\n", "changed\n");
+    expect(diffText("flake.nix", before, after)).toBe(
+      "--- a/flake.nix\n+++ b/flake.nix\n@@ -1,10 +1,10 @@\n" +
+        " line 3\n line 4\n-line 5\n+changed\n line 6\n line 7",
+    );
   });
 });
 

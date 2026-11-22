@@ -4,7 +4,20 @@ import type { RunOptions } from "./args.js";
 import { parseArguments, usage } from "./args.js";
 import { createNodeFsProbe } from "./fs.js";
 import { type GenerateInput, type GenerateResult, generate } from "./generate.js";
-import { diffPlan } from "./plan.js";
+import { diffPlan, diffText } from "./plan.js";
+import type { FsProbe } from "./types.js";
+import {
+  colorizeDiff,
+  createUi,
+  detectionLine,
+  header,
+  info,
+  limitDiff,
+  success,
+  summary,
+  type Ui,
+  warning,
+} from "./ui.js";
 
 export type { ParsedArguments, RunOptions } from "./args.js";
 export { CliError, parseArguments, usage } from "./args.js";
@@ -22,48 +35,60 @@ export function packageVersion(): string {
   }
 }
 
-function report(result: GenerateResult, options: RunOptions): void {
-  const out = (message: string): void => {
-    process.stdout.write(`${message}\n`);
-  };
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function report(result: GenerateResult, options: RunOptions, probe: FsProbe, ui: Ui): void {
   const err = (message: string): void => {
     process.stderr.write(`${message}\n`);
   };
 
-  for (const detection of result.info.detections) {
-    err(`detected ${detection.label}: ${detection.packages.join(", ")}`);
-  }
-  if (options.verbose) {
-    for (const detection of result.info.detections) {
-      err(`markers ${detection.label}: ${detection.markers.join(", ")}`);
-    }
-  }
-  for (const warning of result.plan.warnings) {
-    err(`warning: ${warning}`);
-  }
+  err("");
+  err(header(ui, packageVersion(), resolve(options.dir)));
+  err("");
+  for (const detection of result.info.detections) err(detectionLine(ui, detection));
+  for (const message of result.plan.warnings) err(warning(ui, message));
 
   if (options.stdout) {
     process.stdout.write(result.flake);
     return;
   }
+
   if (options.dryRun) {
     if (result.plan.actions.length === 0) {
-      out("nothing to write");
+      err(info(ui, "nothing to write"));
+      return;
     }
     for (const action of result.plan.actions) {
-      out(`would write ${action.path}`);
+      const diff = diffText(action.path, probe.readText(action.path), action.content);
+      err(info(ui, `would write ${action.path}`));
+      if (diff.length === 0) err(summary(ui, "unchanged"));
+      else err(colorizeDiff(ui, diff));
     }
     return;
   }
+
   if (result.written.length === 0) {
-    err("nothing written");
+    err(info(ui, "nothing written; use --force to overwrite or remove the existing file"));
+  } else {
+    for (const path of result.written) err(success(ui, `wrote ${path}`));
   }
-  for (const path of result.written) {
-    err(`wrote ${path}`);
-  }
+
+  const packages = result.info.detections.reduce((total, item) => total + item.packages.length, 0);
+  err(
+    summary(
+      ui,
+      [
+        countLabel(result.info.detections.length, "ecosystem", "ecosystems"),
+        countLabel(packages, "package", "packages"),
+        countLabel(result.written.length, "file", "files"),
+      ].join(" · "),
+    ),
+  );
 }
 
-async function runCheck(options: RunOptions): Promise<number> {
+async function runCheck(options: RunOptions, probe: FsProbe, ui: Ui): Promise<number> {
   const input: GenerateInput = {
     dir: options.dir,
     output: options.output,
@@ -73,13 +98,20 @@ async function runCheck(options: RunOptions): Promise<number> {
     stdout: false,
   };
   const result = await generate(input);
-  const mismatches = diffPlan(result.plan, createNodeFsProbe(resolve(options.dir)));
+  const mismatches = diffPlan(result.plan, probe);
   if (mismatches.length === 0) {
     process.stdout.write("up to date\n");
     return 0;
   }
+
   for (const path of mismatches) {
+    const action = result.plan.actions.find((candidate) => candidate.path === path);
+    const diff = action === undefined ? "" : diffText(path, probe.readText(path), action.content);
     process.stderr.write(`outdated: ${path}\n`);
+    if (diff.length > 0) {
+      const max = options.verbose ? Number.MAX_SAFE_INTEGER : 20;
+      process.stderr.write(`${colorizeDiff(ui, limitDiff(diff, max))}\n`);
+    }
   }
   return 1;
 }
@@ -96,9 +128,11 @@ export async function run(argv: readonly string[]): Promise<number> {
   }
 
   const options = parsed.options;
-  if (options.check) return runCheck(options);
+  const ui = createUi(options.verbose);
+  const probe = createNodeFsProbe(resolve(options.dir));
+  if (options.check) return runCheck(options, probe, ui);
 
   const result = await generate(options);
-  report(result, options);
+  report(result, options, probe, ui);
   return 0;
 }

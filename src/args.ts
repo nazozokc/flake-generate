@@ -1,9 +1,12 @@
 import type { GenerateInput } from "./generate.js";
 
 export class CliError extends Error {
-  constructor(message: string) {
+  readonly hint: string | undefined;
+
+  constructor(message: string, hint?: string) {
     super(message);
     this.name = "CliError";
+    this.hint = hint;
   }
 }
 
@@ -33,10 +36,56 @@ const USAGE = [
   "  -h, --help           show this help",
   "  -V, --version        show the version",
   "",
+  "Examples:",
+  "  flake-generate                      generate flake.nix in the current directory",
+  "  flake-generate --stdout | head -20  preview before writing",
+  "  flake-generate -f --envrc           overwrite and add .envrc for direnv",
+  "  flake-generate --check              fail when the generated flake is stale",
+  "",
+  "Exit codes:",
+  "  0  success (or --check with no diff)",
+  "  1  runtime error, or --check with a diff",
+  "  2  invalid arguments",
+  "",
 ].join("\n");
 
 export function usage(): string {
   return USAGE;
+}
+
+const KNOWN_OPTIONS = [
+  "--output",
+  "--force",
+  "--envrc",
+  "--dry-run",
+  "--stdout",
+  "--check",
+  "--verbose",
+  "--help",
+  "--version",
+] as const;
+
+function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const substitution = (previous[j - 1] ?? j - 1) + (a[i - 1] === b[j - 1] ? 0 : 1);
+      current[j] = Math.min((previous[j] ?? j) + 1, (current[j - 1] ?? j) + 1, substitution);
+    }
+    previous = current;
+  }
+  return previous[b.length] ?? Math.max(a.length, b.length);
+}
+
+function suggestionFor(arg: string): string | undefined {
+  const closest = KNOWN_OPTIONS.map((option) => ({
+    option,
+    distance: editDistance(arg, option),
+  }))
+    .filter((candidate) => candidate.distance <= 2)
+    .sort((a, b) => a.distance - b.distance)[0];
+  return closest === undefined ? undefined : `did you mean ${closest.option}?`;
 }
 
 export function parseArguments(argv: readonly string[]): ParsedArguments {
@@ -99,7 +148,9 @@ export function parseArguments(argv: readonly string[]): ParsedArguments {
           options.output = inline[1];
           break;
         }
-        if (arg.startsWith("-")) throw new CliError(`unknown option: ${arg}`);
+        if (arg.startsWith("-")) {
+          throw new CliError(`unknown option: ${arg}`, suggestionFor(arg));
+        }
         positional.push(arg);
       }
     }
