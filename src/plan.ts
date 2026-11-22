@@ -1,4 +1,4 @@
-import { writeFileAtomic } from "./fs.js";
+import { assertWritableTarget, writeFileAtomic } from "./fs.js";
 import { renderFlake } from "./render/flake.js";
 import type { BuildPlanOptions, FsProbe, Plan, ProjectInfo, WriteAction } from "./types.js";
 
@@ -18,7 +18,12 @@ export function buildPlan(
   const warnings = [...info.warnings];
   const actions: WriteAction[] = [];
   for (const candidate of candidates) {
-    if (probe.exists(candidate.path) && !options.force) {
+    const kind = probe.kind(candidate.path);
+    if (kind === "other") {
+      warnings.push(`${candidate.path} is not a regular file; skipped`);
+      continue;
+    }
+    if (kind === "file" && !options.force) {
       warnings.push(`${candidate.path} already exists; skipped (use --force to overwrite)`);
       continue;
     }
@@ -28,7 +33,17 @@ export function buildPlan(
   return { actions, warnings };
 }
 
+export function diffPlan(plan: Plan, probe: FsProbe): string[] {
+  return plan.actions
+    .filter((action) => probe.readText(action.path) !== action.content)
+    .map((action) => action.path);
+}
+
 export async function applyPlan(root: string, plan: Plan): Promise<string[]> {
+  for (const action of plan.actions) {
+    await assertWritableTarget(root, action.path);
+  }
+
   const written: string[] = [];
   for (const action of plan.actions) {
     await writeFileAtomic(root, action.path, action.content);
