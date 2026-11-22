@@ -18,6 +18,7 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:flake": "bash scripts/check-generated-flake.sh",
     "lint": "biome check .",
     "fmt": "biome check --write ."
   },
@@ -31,9 +32,6 @@
     "node": ">=20"
   },
   "packageManager": "pnpm@12.9.0",
-  "dependencies": {
-    "commander": "^15.1.0"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
     "@types/node": "^26.6.6",

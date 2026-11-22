@@ -3,10 +3,12 @@ import {
   dedupe,
   existingMarkers,
   hasDependency,
-  majorVersion,
   packageJsonObject,
   stringField,
+  toolMarkers,
+  toolVersions,
 } from "./util.js";
+import { firstLine, majorVersion, NODE_ATTRIBUTES } from "./versions.js";
 
 const LOCKFILES = [
   "pnpm-lock.yaml",
@@ -17,7 +19,6 @@ const LOCKFILES = [
   "bun.lockb",
 ] as const;
 
-const NODE_MAJORS = new Set([18, 20, 22, 24, 26]);
 const MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
 
 function declaredManager(pkg: Record<string, unknown> | undefined): string | undefined {
@@ -44,13 +45,18 @@ export function detectNode(probe: FsProbe): Detection | null {
     typeof engines === "object" && engines !== null && !Array.isArray(engines)
       ? stringField((engines as Record<string, unknown>).node)
       : undefined;
-  const version = probe.readText(".nvmrc") ?? probe.readText(".node-version") ?? engineRange;
-  const major = majorVersion(version);
+  const version =
+    probe.readText(".nvmrc") ??
+    probe.readText(".node-version") ??
+    engineRange ??
+    toolVersions(probe).nodejs;
+  const major = majorVersion(firstLine(version));
+  const attribute = major === undefined ? undefined : NODE_ATTRIBUTES[major];
 
   const packages: string[] = [];
   const notes: string[] = [];
-  if (major !== undefined && NODE_MAJORS.has(major)) {
-    packages.push(`nodejs_${major}`);
+  if (attribute !== undefined) {
+    packages.push(attribute);
   } else {
     packages.push("nodejs");
     if (major !== undefined) {
@@ -79,7 +85,11 @@ export function detectNode(probe: FsProbe): Detection | null {
   return {
     ecosystem: "node",
     label: "Node.js",
-    markers: dedupe([...locks, ...(hasPackageJson ? ["package.json"] : [])]),
+    markers: toolMarkers(
+      probe,
+      "nodejs",
+      dedupe([...locks, ...(hasPackageJson ? ["package.json"] : [])]),
+    ),
     packages: dedupe(packages),
     notes,
   };

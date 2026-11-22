@@ -1,16 +1,10 @@
 import type { Detection, FsProbe } from "../types.js";
-import { existingMarkers } from "./util.js";
-
-const PYTHON_MAJORS = new Set([10, 11, 12, 13]);
-
-function pythonVersion(value: string | undefined): number | undefined {
-  const match = value?.match(/^\s*(\d+)\.(\d+)/);
-  const minor = match?.[2];
-  return minor === undefined ? undefined : Number(minor);
-}
+import { toolMarkers, toolVersions } from "./util.js";
+import { firstLine, PYTHON_ATTRIBUTES, pythonMinorVersion } from "./versions.js";
 
 export function detectPython(probe: FsProbe): Detection | null {
-  const markers = existingMarkers(probe, [
+  const tools = toolVersions(probe);
+  const markers = toolMarkers(probe, "python", [
     "uv.lock",
     "poetry.lock",
     "pyproject.toml",
@@ -21,12 +15,13 @@ export function detectPython(probe: FsProbe): Detection | null {
   ]);
   if (markers.length === 0) return null;
 
-  const version = pythonVersion(probe.readText(".python-version"));
+  const version = pythonMinorVersion(firstLine(probe.readText(".python-version") ?? tools.python));
+  const attribute = version === undefined ? undefined : PYTHON_ATTRIBUTES[version];
   const packages: string[] = [];
   const notes: string[] = [];
 
-  if (version !== undefined && PYTHON_MAJORS.has(version)) {
-    packages.push(`python3${version}`);
+  if (attribute !== undefined) {
+    packages.push(attribute);
   } else {
     packages.push("python3");
     if (version !== undefined) {

@@ -18,13 +18,6 @@ export function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-export function majorVersion(value: string | undefined): number | undefined {
-  if (value === undefined) return undefined;
-  const match = value.match(/v?(\d+)/);
-  const major = match?.[1];
-  return major === undefined ? undefined : Number(major);
-}
-
 export function hasDependency(
   pkg: Record<string, unknown> | undefined,
   field: "dependencies" | "devDependencies",
@@ -33,4 +26,38 @@ export function hasDependency(
   const deps = pkg?.[field];
   if (typeof deps !== "object" || deps === null || Array.isArray(deps)) return false;
   return Object.hasOwn(deps, name);
+}
+
+export function toolVersions(probe: FsProbe): Record<string, string> {
+  const tools: Record<string, string> = {};
+
+  for (const line of probe.readText(".tool-versions")?.split(/\r?\n/) ?? []) {
+    const [name, version] = line.trim().split(/\s+/);
+    if (name === undefined || version === undefined || name.startsWith("#")) continue;
+    tools[name] = version;
+  }
+
+  let inTools = false;
+  for (const line of probe.readText("mise.toml")?.split(/\r?\n/) ?? []) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("[")) {
+      inTools = trimmed === "[tools]";
+      continue;
+    }
+    if (!inTools) continue;
+    const match = /^([\w-]+)\s*=\s*["']([^"']+)["']/.exec(trimmed);
+    if (match?.[1] !== undefined && match[2] !== undefined) tools[match[1]] = match[2];
+  }
+
+  return tools;
+}
+
+export function toolMarkers(probe: FsProbe, tool: string, base: readonly string[]): string[] {
+  const markers = existingMarkers(probe, base);
+  if (!Object.hasOwn(toolVersions(probe), tool)) return markers;
+
+  for (const file of [".tool-versions", "mise.toml"]) {
+    if (probe.exists(file) && !markers.includes(file)) markers.push(file);
+  }
+  return markers;
 }

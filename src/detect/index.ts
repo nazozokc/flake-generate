@@ -1,4 +1,5 @@
 import type { Detection, FsProbe, ProjectInfo } from "../types.js";
+import { detectDeno } from "./deno.js";
 import { detectElixir } from "./elixir.js";
 import { detectGo } from "./go.js";
 import { detectJvm } from "./jvm.js";
@@ -10,6 +11,7 @@ import { detectRust } from "./rust.js";
 
 const DETECTORS: readonly ((probe: FsProbe) => Detection | null)[] = [
   detectNode,
+  detectDeno,
   detectRust,
   detectGo,
   detectPython,

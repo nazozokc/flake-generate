@@ -1,10 +1,11 @@
-import { chmod, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { generate } from "../cli.js";
 import { createNodeFsProbe } from "../fs.js";
-import { applyPlan, buildPlan } from "../plan.js";
+import { applyPlan, buildPlan, diffPlan } from "../plan.js";
+import type { Plan } from "../types.js";
 import { fakeProbe } from "./helpers.js";
 
 const directories: string[] = [];
@@ -43,6 +44,24 @@ describe("buildPlan", () => {
 
     expect(plan.actions.map((action) => action.path)).toEqual(["flake.nix", ".envrc"]);
     expect(plan.actions[1]?.content).toBe("use flake\n");
+  });
+});
+
+describe("diffPlan", () => {
+  const plan: Plan = {
+    actions: [
+      { kind: "write", path: "flake.nix", label: "flake.nix", content: "new" },
+      { kind: "write", path: ".envrc", label: ".envrc", content: "use flake\n" },
+    ],
+    warnings: [],
+  };
+
+  it("reports only missing or changed files", () => {
+    expect(diffPlan(plan, fakeProbe({ "flake.nix": "old", ".envrc": "use flake\n" }))).toEqual([
+      "flake.nix",
+    ]);
+    expect(diffPlan(plan, fakeProbe({ "flake.nix": "new", ".envrc": "use flake\n" }))).toEqual([]);
+    expect(diffPlan(plan, fakeProbe({ ".envrc": "use flake\n" }))).toEqual(["flake.nix"]);
   });
 });
 
@@ -90,7 +109,7 @@ describe("applyPlan", () => {
     expect(await readFile(join(dir, "config/flake.nix"), "utf8")).toBe("flake contents\n");
   });
 
-  it("refuses a symlink destination even with force", async () => {
+  it("skips a symlink destination in the plan even with force", async () => {
     const dir = await tempDir();
     await symlink("target", join(dir, "flake.nix"));
     const plan = buildPlan(
@@ -100,7 +119,23 @@ describe("applyPlan", () => {
       createNodeFsProbe(dir),
     );
 
-    await expect(applyPlan(dir, plan)).rejects.toThrow("flake.nix is not a regular file");
+    expect(plan.actions).toEqual([]);
+    expect(plan.warnings).toContain("flake.nix is not a regular file; skipped");
+  });
+
+  it("validates every target before writing the first file", async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, "blocked"));
+    const plan: Plan = {
+      actions: [
+        { kind: "write", path: "flake.nix", label: "flake.nix", content: "first" },
+        { kind: "write", path: "blocked", label: "blocked", content: "second" },
+      ],
+      warnings: [],
+    };
+
+    await expect(applyPlan(dir, plan)).rejects.toThrow("blocked is not a regular file");
+    await expect(readFile(join(dir, "flake.nix"))).rejects.toThrow();
   });
 });
 
@@ -163,5 +198,22 @@ describe("generate", () => {
         stdout: false,
       }),
     ).rejects.toThrow("invalid output path");
+  });
+
+  it("rejects a missing or non-directory target", async () => {
+    const dir = await tempDir();
+    const input = {
+      dir: join(dir, "missing"),
+      output: "flake.nix",
+      force: false,
+      envrc: false,
+      dryRun: true,
+      stdout: false,
+    };
+
+    await expect(generate(input)).rejects.toThrow("not a directory");
+
+    await writeFile(join(dir, "file"), "");
+    await expect(generate({ ...input, dir: join(dir, "file") })).rejects.toThrow("not a directory");
   });
 });

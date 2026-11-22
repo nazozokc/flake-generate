@@ -1,4 +1,13 @@
-export type Ecosystem = "node" | "rust" | "go" | "python" | "ruby" | "php" | "jvm" | "elixir";
+export type Ecosystem =
+  | "node"
+  | "deno"
+  | "rust"
+  | "go"
+  | "python"
+  | "ruby"
+  | "php"
+  | "jvm"
+  | "elixir";
 
 export interface Detection {
   ecosystem: Ecosystem;
@@ -14,8 +23,11 @@ export interface ProjectInfo {
   warnings: string[];
 }
 
+export type PathKind = "missing" | "file" | "other";
+
 export interface FsProbe {
   exists(path: string): boolean;
+  kind(path: string): PathKind;
   readText(path: string): string | undefined;
   readJson(path: string): unknown | undefined;
 }

@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-import { CommanderError } from "commander";
-import { createProgram } from "./cli.js";
+import { CliError, run } from "./cli.js";
 
-createProgram()
-  .parseAsync(process.argv)
+run(process.argv.slice(2))
+  .then((code: number) => {
+    process.exitCode = code;
+  })
   .catch((error: unknown) => {
-    if (error instanceof CommanderError) {
-      if (error.exitCode !== 0) process.exitCode = 2;
+    if (error instanceof CliError) {
+      process.stderr.write(`flake-generate: ${error.message}\n`);
+      process.stderr.write("Try 'flake-generate --help' for usage.\n");
+      process.exitCode = 2;
       return;
     }
 
