@@ -1,27 +1,58 @@
 # flake-generate
 
 カレントディレクトリのロックファイルと設定ファイルを読んで、環境に合った `flake.nix` を生成する CLI。
+
 生成物は手で編集しやすいように、判定根拠のコメントとグループ化されたパッケージ列だけの素直な Nix 式になる。
+
+## クイックスタート（推奨）
+
+インストール不要ですぐ使えます。
+
+```sh
+bunx flake-generate
+```
+
+カレントディレクトリに `flake.nix` を生成します。
+
+```sh
+# 任意のディレクトリを対象に
+bunx flake-generate ../my-app
+
+# 書き込まずに生成結果を表示
+bunx flake-generate --stdout
+
+# 予定だけ表示
+（実際には書き込まない）
+bunx flake-generate --dry-run
+
+# 生成結果が古ければ失敗（CI 向け）
+bunx flake-generate --check
+```
 
 ## インストール
 
+推奨は上の `bunx` ですが、他の方法もあります。
+
 ```sh
+# npx
+npx flake-generate
+
+# グローバルインストール
 npm install -g flake-generate
-# または Nix で
+bun add -g flake-generate
+
+# Nix
 nix run github:nazozokc/flake-generate -- .
 ```
 
 ## 使い方
 
 ```sh
-pnpm install
-pnpm build
-
-node dist/index.js            # カレントに flake.nix を生成
-node dist/index.js ../my-app  # 任意のディレクトリを対象にする
-node dist/index.js --stdout   # 書き込まずに生成結果を表示
-node dist/index.js --dry-run  # 書き込む予定のファイルだけ表示
-node dist/index.js --check    # 生成結果が古ければ失敗（CI 向け）
+flake-generate                # カレントに flake.nix を生成
+flake-generate ../my-app      # 任意のディレクトリを対象にする
+flake-generate --stdout       # 書き込まずに生成結果を表示
+flake-generate --dry-run      # 書き込む予定のファイルだけ表示
+flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
 ```
 
 | オプション            | 説明                                                       |
@@ -36,8 +67,8 @@ node dist/index.js --check    # 生成結果が古ければ失敗（CI 向け）
 | `-h, --help`          | ヘルプを表示する                                           |
 | `-V, --version`       | バージョンを表示する                                       |
 
-既存の `flake.nix` は既定では上書きしない。`--force` を付けること。
-`--check` は `--dry-run` / `--stdout` / `--force` と併用できない。
+既存の `flake.nix` は既定では上書きしません。`--force` を付けること。
+`--check` は `--dry-run` / `--stdout` / `--force` と併用できません。
 
 ### 終了コード
 
