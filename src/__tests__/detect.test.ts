@@ -102,6 +102,27 @@ describe("other detectors", () => {
     expect(detection?.packages).toEqual(["pkgs.jdk", "maven"]);
   });
 
+  it("does not add gradle for a Maven project with a version file", () => {
+    const detection = detectJvm(
+      fakeProbe({ "pom.xml": "", ".tool-versions": "java temurin-21.0.1+12.1\n" }),
+    );
+
+    expect(detection?.packages).toEqual(["pkgs.jdk21 or pkgs.jdk", "maven"]);
+  });
+
+  it("reads the Elixir version from a mix.exs dependency tuple", () => {
+    const detection = detectElixir(
+      fakeProbe({
+        "mix.exs": 'def project do\n  deps: [{:elixir, "~> 1.19"}],\nend',
+        "mix.lock": "",
+        ".tool-versions": "erlang 28.0\n",
+      }),
+    );
+
+    expect(detection?.packages).toEqual(["pkgs.beam28Packages.elixir_1_19 or pkgs.elixir"]);
+    expect(detection?.notes).toEqual([]);
+  });
+
   it("detects Deno", () => {
     const detection = detectDeno(fakeProbe({ "deno.json": "{}", "deno.lock": "" }));
 
@@ -171,6 +192,18 @@ describe("tool version files", () => {
     expect(detection?.packages).toContain("pkgs.nodejs_24 or pkgs.nodejs");
     expect(detection?.markers).toContain("mise.toml");
     expect(detection?.markers).not.toContain(".tool-versions");
+  });
+
+  it("reads Node from mise.toml's `node` key", () => {
+    const detection = detectNode(
+      fakeProbe({
+        "package.json": "{}",
+        "mise.toml": '[tools]\nnode = "20.11.0"\n',
+      }),
+    );
+
+    expect(detection?.packages).toContain("pkgs.nodejs_20 or pkgs.nodejs");
+    expect(detection?.markers).toContain("mise.toml");
   });
 
   it("reads Python from .tool-versions", () => {

@@ -45,7 +45,12 @@ export async function generate(input: GenerateInput): Promise<GenerateResult> {
   const plan = buildPlan(
     info,
     flake,
-    { output: input.output, force: input.force, envrc: input.envrc },
+    {
+      output: input.output,
+      force: input.force,
+      envrc: input.envrc,
+      ignoreExisting: input.stdout,
+    },
     probe,
   );
   const written = input.dryRun || input.stdout ? [] : await applyPlan(root, plan);

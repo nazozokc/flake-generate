@@ -25,6 +25,7 @@ export function buildPlan(
       content: renderEnvrc(probe.readText(".envrc")),
     });
   }
+  if (options.ignoreExisting) return { actions: candidates, warnings: [...info.warnings] };
 
   const updatable = new Set<string>();
   if (hasManagedBlock(existingFlake)) updatable.add(options.output);

@@ -65,4 +65,6 @@ export interface BuildPlanOptions {
   output: string;
   force: boolean;
   envrc: boolean;
+  /** Preview modes do not write, so existing targets must not produce skip warnings. */
+  ignoreExisting?: boolean;
 }
