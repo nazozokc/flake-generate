@@ -56,7 +56,8 @@ export function rustVersion(value: string | undefined): string | undefined {
   return channel?.[1] ?? firstLine(value);
 }
 
+/** Accept both `elixir: "~> 1.18"` and mix.exs deps like `{:elixir, "~> 1.18"}`. */
 export function elixirMinorVersion(value: string | undefined): number | undefined {
-  const match = value?.match(/elixir:\s*["']~?>\s*\d+\.(\d+)/);
+  const match = value?.match(/\belixir\b["']?\s*[,:]\s*["']~?>\s*\d+\.(\d+)/);
   return match?.[1] === undefined ? undefined : Number(match[1]);
 }

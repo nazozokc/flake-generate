@@ -52,9 +52,16 @@ export function toolVersions(probe: FsProbe): Record<string, string> {
   return tools;
 }
 
-export function toolMarkers(probe: FsProbe, tool: string, base: readonly string[]): string[] {
+/** Add tool-version files that pin any of the given names (e.g. `nodejs`/`node`). */
+export function toolMarkers(
+  probe: FsProbe,
+  tools: string | readonly string[],
+  base: readonly string[],
+): string[] {
   const markers = existingMarkers(probe, base);
-  if (!Object.hasOwn(toolVersions(probe), tool)) return markers;
+  const versions = toolVersions(probe);
+  const names = typeof tools === "string" ? [tools] : tools;
+  if (!names.some((name) => Object.hasOwn(versions, name))) return markers;
 
   for (const file of [".tool-versions", "mise.toml"]) {
     if (probe.exists(file) && !markers.includes(file)) markers.push(file);

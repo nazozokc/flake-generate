@@ -19,7 +19,8 @@ export function detectJvm(probe: FsProbe): Detection | null {
   const jdk =
     version === undefined || version < 8 ? "pkgs.jdk" : versionedPackage(`jdk${version}`, "jdk");
   const packages = [jdk];
-  if (markers.some((marker) => marker !== "pom.xml" && marker !== ".java-version")) {
+  const versionFiles = new Set([".java-version", ".tool-versions", "mise.toml"]);
+  if (markers.some((marker) => !versionFiles.has(marker) && marker !== "pom.xml")) {
     packages.push("gradle");
   }
   if (markers.includes("pom.xml")) packages.push("maven");

@@ -39,14 +39,16 @@ export function detectNode(probe: FsProbe): Detection | null {
   if (locks.length === 0 && !hasPackageJson) return null;
 
   const pkg = packageJsonObject(probe);
+  const tools = toolVersions(probe);
   const manager = declaredManager(pkg) ?? locks.map(lockfileManager).find((v) => v !== undefined);
   const engines = pkg?.engines;
   const engineRange =
     typeof engines === "object" && engines !== null && !Array.isArray(engines)
       ? stringField((engines as Record<string, unknown>).node)
       : undefined;
+  // asdf uses `nodejs`, mise uses `node` in [tools].
   const pinned = firstLine(
-    probe.readText(".nvmrc") ?? probe.readText(".node-version") ?? toolVersions(probe).nodejs,
+    probe.readText(".nvmrc") ?? probe.readText(".node-version") ?? tools.nodejs ?? tools.node,
   );
   const major = pinned !== undefined ? majorVersion(pinned) : minimumMajorFromRange(engineRange);
 
@@ -84,7 +86,7 @@ export function detectNode(probe: FsProbe): Detection | null {
     label: "Node.js",
     markers: toolMarkers(
       probe,
-      "nodejs",
+      ["nodejs", "node"],
       dedupe([...locks, ...(hasPackageJson ? ["package.json"] : [])]),
     ),
     packages: dedupe(packages),
