@@ -1,6 +1,6 @@
 {
   "name": "flake-generate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Analyze a project directory and generate a clean, editable flake.nix",
   "type": "module",
   "bin": {
@@ -19,6 +19,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:flake": "bash scripts/check-generated-flake.sh",
+    "test:package": "bash scripts/check-npm-package.sh",
+    "version:check": "node scripts/check-version.mjs",
+    "version:sync": "node scripts/check-version.mjs --sync",
     "lint": "biome check .",
     "fmt": "biome check --write ."
   },

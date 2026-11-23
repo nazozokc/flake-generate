@@ -9,21 +9,30 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 24]
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check version drift
+        run: pnpm version:check
 
       - name: Typecheck
         run: pnpm typecheck
@@ -39,6 +48,28 @@ jobs:
 
       - name: Check published files
         run: npm pack --dry-run
+
+      - name: Smoke test packed CLI
+        run: pnpm test:package
+
+  nix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31

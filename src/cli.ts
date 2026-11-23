@@ -39,7 +39,7 @@ function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function report(result: GenerateResult, options: RunOptions, probe: FsProbe, ui: Ui): void {
+function reportFindings(result: GenerateResult, options: RunOptions, ui: Ui): void {
   const err = (message: string): void => {
     process.stderr.write(`${message}\n`);
   };
@@ -49,6 +49,14 @@ function report(result: GenerateResult, options: RunOptions, probe: FsProbe, ui:
   err("");
   for (const detection of result.info.detections) err(detectionLine(ui, detection));
   for (const message of result.plan.warnings) err(warning(ui, message));
+}
+
+function report(result: GenerateResult, options: RunOptions, probe: FsProbe, ui: Ui): void {
+  const err = (message: string): void => {
+    process.stderr.write(`${message}\n`);
+  };
+
+  reportFindings(result, options, ui);
 
   if (options.stdout) {
     process.stdout.write(result.flake);
@@ -70,7 +78,7 @@ function report(result: GenerateResult, options: RunOptions, probe: FsProbe, ui:
   }
 
   if (result.written.length === 0) {
-    err(info(ui, "nothing written; use --force to overwrite or remove the existing file"));
+    err(info(ui, "nothing to write; use --force to replace an unmanaged file"));
   } else {
     for (const path of result.written) err(success(ui, `wrote ${path}`));
   }
@@ -98,12 +106,19 @@ async function runCheck(options: RunOptions, probe: FsProbe, ui: Ui): Promise<nu
     stdout: false,
   };
   const result = await generate(input);
+  reportFindings(result, options, ui);
+
+  const expected = [options.output, ...(options.envrc ? [".envrc"] : [])];
+  const blocked = expected.filter((path) => probe.kind(path) === "other");
   const mismatches = diffPlan(result.plan, probe);
-  if (mismatches.length === 0) {
+  if (blocked.length === 0 && mismatches.length === 0) {
     process.stdout.write("up to date\n");
     return 0;
   }
 
+  for (const path of blocked) {
+    process.stderr.write(`unwritable: ${path} (not a regular file)\n`);
+  }
   for (const path of mismatches) {
     const action = result.plan.actions.find((candidate) => candidate.path === path);
     const diff = action === undefined ? "" : diffText(path, probe.readText(path), action.content);

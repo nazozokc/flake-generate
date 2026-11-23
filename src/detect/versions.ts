@@ -1,33 +1,3 @@
-export const NODE_ATTRIBUTES: Readonly<Record<number, string>> = {
-  22: "nodejs_22",
-  24: "nodejs_24",
-  26: "nodejs_26",
-};
-
-export const PYTHON_ATTRIBUTES: Readonly<Record<number, string>> = {
-  11: "python311",
-  12: "python312",
-  13: "python313",
-  14: "python314",
-};
-
-export const RUBY_ATTRIBUTES: Readonly<Record<number, string>> = {
-  4: "ruby_3_4",
-};
-
-export const JDK_ATTRIBUTES: Readonly<Record<number, string>> = {
-  8: "jdk8",
-  11: "jdk11",
-  17: "jdk17",
-  21: "jdk21",
-  25: "jdk25",
-};
-
-export const ELIXIR_ATTRIBUTES: Readonly<Record<number, string>> = {
-  18: "beam27Packages.elixir_1_18",
-  19: "beam27Packages.elixir_1_19",
-};
-
 export function firstLine(value: string | undefined): string | undefined {
   return value
     ?.split(/\r?\n/)
@@ -35,9 +5,26 @@ export function firstLine(value: string | undefined): string | undefined {
     .find((line) => line.length > 0 && !line.startsWith("#"));
 }
 
+/** `pkgs.<attribute> or <fallback>` keeps older/newer nixpkgs from breaking eval. */
+export function versionedPackage(attribute: string, fallback: string): string {
+  return `pkgs.${attribute} or pkgs.${fallback}`;
+}
+
 export function majorVersion(value: string | undefined): number | undefined {
+  const legacy = value?.match(/^1\.(\d+)/);
+  if (legacy?.[1] !== undefined) return Number(legacy[1]);
+
   const match = value?.match(/v?(\d+)(?:\.\d+)*/);
   return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
+/** Semver ranges pick the lowest requested major: `>=20 <23` -> 20. */
+export function minimumMajorFromRange(value: string | undefined): number | undefined {
+  const majors = [...(value?.matchAll(/(\d+)(?:\.\d+)*/g) ?? [])]
+    .map((match) => match[1])
+    .filter((major): major is string => major !== undefined)
+    .map(Number);
+  return majors.length === 0 ? undefined : Math.min(...majors);
 }
 
 export function pythonMinorVersion(value: string | undefined): number | undefined {
@@ -48,6 +35,25 @@ export function pythonMinorVersion(value: string | undefined): number | undefine
 export function rubyMinorVersion(value: string | undefined): number | undefined {
   const match = value?.match(/^3\.(\d+)/);
   return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
+/** For 1.x toolchains (Go, Rust) the second component is the versioned major. */
+export function legacyMinorVersion(value: string | undefined): number | undefined {
+  const directive = value?.match(/^\s*(?:go\s+)?1\.(\d+)/m);
+  return directive?.[1] === undefined ? undefined : Number(directive[1]);
+}
+
+export function goMinorVersion(value: string | undefined): number | undefined {
+  return legacyMinorVersion(value);
+}
+
+export function rustMinorVersion(value: string | undefined): number | undefined {
+  return legacyMinorVersion(value);
+}
+
+export function rustVersion(value: string | undefined): string | undefined {
+  const channel = value?.match(/^\s*channel\s*=\s*["']([^"']+)["']/m);
+  return channel?.[1] ?? firstLine(value);
 }
 
 export function elixirMinorVersion(value: string | undefined): number | undefined {

@@ -1,6 +1,6 @@
 import type { Detection, FsProbe } from "../types.js";
 import { toolMarkers, toolVersions } from "./util.js";
-import { firstLine, PYTHON_ATTRIBUTES, pythonMinorVersion } from "./versions.js";
+import { firstLine, pythonMinorVersion, versionedPackage } from "./versions.js";
 
 export function detectPython(probe: FsProbe): Detection | null {
   const tools = toolVersions(probe);
@@ -16,17 +16,16 @@ export function detectPython(probe: FsProbe): Detection | null {
   if (markers.length === 0) return null;
 
   const version = pythonMinorVersion(firstLine(probe.readText(".python-version") ?? tools.python));
-  const attribute = version === undefined ? undefined : PYTHON_ATTRIBUTES[version];
   const packages: string[] = [];
   const notes: string[] = [];
 
-  if (attribute !== undefined) {
-    packages.push(attribute);
+  if (version !== undefined && version < 10) {
+    packages.push("pkgs.python3");
+    notes.push(`Python 3.${version} is too old for a versioned nixpkgs attribute; using python3`);
   } else {
-    packages.push("python3");
-    if (version !== undefined) {
-      notes.push(`Python 3.${version} has no known nixpkgs attribute; using python3`);
-    }
+    packages.push(
+      version === undefined ? "pkgs.python3" : versionedPackage(`python3${version}`, "python3"),
+    );
   }
 
   if (markers.includes("uv.lock")) packages.push("uv");

@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { generate } from "../cli.js";
-import { createNodeFsProbe } from "../fs.js";
+import { assertWritableTarget, createNodeFsProbe, writeFileAtomic } from "../fs.js";
 import { applyPlan, buildPlan, diffPlan, diffText } from "../plan.js";
+import { renderFlake } from "../render/flake.js";
 import type { Plan } from "../types.js";
 import { fakeProbe } from "./helpers.js";
 
@@ -29,21 +30,56 @@ describe("buildPlan", () => {
     warnings: [],
   };
 
-  it("skips existing files unless forced", () => {
-    const probe = fakeProbe({ "flake.nix": "old", ".envrc": "old" });
+  it("updates only the managed block and preserves existing .envrc lines", () => {
+    const generated = renderFlake(info);
+    const existing = generated
+      .replace("# No ecosystem detected; add packages here.", "pkgs.old")
+      .replace(
+        "            shellHook = ''",
+        "            # my custom line\n            shellHook = ''",
+      );
+    const probe = fakeProbe({ "flake.nix": existing, ".envrc": "export FOO=1\n" });
+    const plan = buildPlan(
+      info,
+      generated,
+      { output: "flake.nix", force: false, envrc: true },
+      probe,
+    );
+
+    expect(plan.actions.map((action) => action.path)).toEqual(["flake.nix", ".envrc"]);
+    expect(plan.actions[0]?.content).toContain("# my custom line");
+    expect(plan.actions[0]?.content).not.toContain("pkgs.old");
+    expect(plan.actions[1]?.content).toBe("export FOO=1\nuse flake\n");
+    expect(plan.warnings).toEqual([]);
+  });
+
+  it("does nothing when the managed block is already current", () => {
+    const generated = renderFlake(info);
+    const probe = fakeProbe({ "flake.nix": generated });
+    const plan = buildPlan(
+      info,
+      generated,
+      { output: "flake.nix", force: false, envrc: false },
+      probe,
+    );
+
+    expect(plan.actions).toEqual([]);
+  });
+
+  it("skips an unmanaged file unless forced", () => {
+    const probe = fakeProbe({ "flake.nix": "# hand written\n", ".envrc": "use flake\n" });
     const plan = buildPlan(info, "new", { output: "flake.nix", force: false, envrc: true }, probe);
 
     expect(plan.actions).toEqual([]);
     expect(plan.warnings).toContain("flake.nix already exists; skipped (use --force to overwrite)");
-    expect(plan.warnings).toContain(".envrc already exists; skipped (use --force to overwrite)");
   });
 
-  it("includes both files when forced", () => {
-    const probe = fakeProbe({ "flake.nix": "old", ".envrc": "old" });
+  it("replaces an unmanaged file when forced", () => {
+    const probe = fakeProbe({ "flake.nix": "old", ".envrc": "use flake\n" });
     const plan = buildPlan(info, "new", { output: "flake.nix", force: true, envrc: true }, probe);
 
-    expect(plan.actions.map((action) => action.path)).toEqual(["flake.nix", ".envrc"]);
-    expect(plan.actions[1]?.content).toBe("use flake\n");
+    expect(plan.actions.map((action) => action.path)).toEqual(["flake.nix"]);
+    expect(plan.actions[0]?.content).toBe("new");
   });
 });
 
@@ -166,7 +202,130 @@ describe("applyPlan", () => {
   });
 });
 
+describe("writable target validation", () => {
+  it("rejects a symlink in a parent directory", async () => {
+    const dir = await tempDir();
+    const outside = await tempDir();
+    await writeFile(join(outside, "flake.nix"), "SENTINEL\n");
+    await symlink(outside, join(dir, "link"));
+
+    await expect(writeFileAtomic(dir, "link/flake.nix", "generated\n")).rejects.toThrow(
+      "link is a symlink",
+    );
+    expect(await readFile(join(outside, "flake.nix"), "utf8")).toBe("SENTINEL\n");
+  });
+
+  it("rejects a file used as a parent directory", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "config"), "not a directory");
+
+    await expect(assertWritableTarget(dir, "config/flake.nix")).rejects.toThrow(
+      "config is not a directory",
+    );
+  });
+
+  it("rejects a symlink as the final target", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "target"), "SENTINEL\n");
+    await symlink(join(dir, "target"), join(dir, "flake.nix"));
+
+    await expect(writeFileAtomic(dir, "flake.nix", "generated\n")).rejects.toThrow(
+      "flake.nix is a symlink",
+    );
+    expect(await readFile(join(dir, "target"), "utf8")).toBe("SENTINEL\n");
+  });
+
+  it("writes through freshly created parent directories", async () => {
+    const dir = await tempDir();
+    await writeFileAtomic(dir, "a/b/flake.nix", "generated\n");
+    expect(await readFile(join(dir, "a/b/flake.nix"), "utf8")).toBe("generated\n");
+  });
+});
+
 describe("generate", () => {
+  it("rejects an output path that collides with .envrc", async () => {
+    const dir = await tempDir();
+    await expect(
+      generate({
+        dir,
+        output: "./.envrc",
+        force: false,
+        envrc: true,
+        dryRun: true,
+        stdout: false,
+      }),
+    ).rejects.toThrow("cannot be used with -o .envrc");
+  });
+
+  it("applies .flake-generate.json config", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "pnpm-lock.yaml"), "");
+    await writeFile(join(dir, "Cargo.toml"), "");
+    await writeFile(
+      join(dir, ".flake-generate.json"),
+      JSON.stringify({
+        systems: ["x86_64-linux"],
+        nixpkgs: "github:NixOS/nixpkgs/25.05",
+        description: "custom env",
+        extraPackages: ["hello", "git"],
+        disabledDetectors: ["rust"],
+      }),
+    );
+
+    const result = await generate({
+      dir,
+      output: "flake.nix",
+      force: false,
+      envrc: false,
+      dryRun: true,
+      stdout: false,
+    });
+
+    expect(result.flake).toContain('description = "custom env";');
+    expect(result.flake).toContain('nixpkgs.url = "github:NixOS/nixpkgs/25.05";');
+    expect(result.flake).toContain('"x86_64-linux"');
+    expect(result.flake).not.toContain('"aarch64-darwin"');
+    expect(result.flake).toContain("pkgs.hello");
+    expect(result.flake).toContain("pkgs.git");
+    expect(result.flake).not.toContain("pkgs.cargo");
+    expect(result.info.detections.map((item) => item.ecosystem)).toEqual(["node"]);
+  });
+
+  it("reads config from the package.json field", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "pnpm-lock.yaml"), "");
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ "flake-generate": { extraPackages: ["jq"] } }),
+    );
+
+    const result = await generate({
+      dir,
+      output: "flake.nix",
+      force: false,
+      envrc: false,
+      dryRun: true,
+      stdout: false,
+    });
+    expect(result.flake).toContain("pkgs.jq");
+  });
+
+  it("rejects an invalid config", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, ".flake-generate.json"), '{"bogus": true}');
+
+    await expect(
+      generate({
+        dir,
+        output: "flake.nix",
+        force: false,
+        envrc: false,
+        dryRun: true,
+        stdout: false,
+      }),
+    ).rejects.toThrow("unknown config key: bogus");
+  });
+
   it("does not write in dry-run or stdout mode", async () => {
     const dir = await tempDir();
     await writeFile(join(dir, "pnpm-lock.yaml"), "");
@@ -189,8 +348,9 @@ describe("generate", () => {
     await expect(readFile(join(dir, "flake.nix"))).rejects.toThrow();
   });
 
-  it("writes and then protects an existing flake", async () => {
+  it("writes once and leaves a managed flake up to date", async () => {
     const dir = await tempDir();
+    await writeFile(join(dir, "pnpm-lock.yaml"), "");
     const input = {
       dir,
       output: "flake.nix",
@@ -205,12 +365,30 @@ describe("generate", () => {
 
     const second = await generate(input);
     expect(second.written).toEqual([]);
-    expect(second.plan.warnings).toContain(
+    expect(second.plan.warnings).toEqual([]);
+    expect(await readFile(join(dir, ".envrc"), "utf8")).toBe("use flake\n");
+  });
+
+  it("needs --force to replace an unmanaged flake", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "flake.nix"), "# hand written\n");
+    const input = {
+      dir,
+      output: "flake.nix",
+      force: false,
+      envrc: false,
+      dryRun: false,
+      stdout: false,
+    };
+
+    const skipped = await generate(input);
+    expect(skipped.written).toEqual([]);
+    expect(skipped.plan.warnings).toContain(
       "flake.nix already exists; skipped (use --force to overwrite)",
     );
 
     const forced = await generate({ ...input, force: true });
-    expect(forced.written).toEqual(["flake.nix", ".envrc"]);
+    expect(forced.written).toEqual(["flake.nix"]);
   });
 
   it("rejects unsafe output paths", async () => {

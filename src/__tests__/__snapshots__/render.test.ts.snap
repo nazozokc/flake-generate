@@ -17,7 +17,6 @@ exports[`renderFlake > renders a grouped, readable flake 1`] = `
       systems = [
         "aarch64-darwin"
         "aarch64-linux"
-        "x86_64-darwin"
         "x86_64-linux"
       ];
 
@@ -29,10 +28,12 @@ exports[`renderFlake > renders a grouped, readable flake 1`] = `
           devShells.default = pkgs.mkShell {
             name = "demo";
             packages = [
+              # >>> flake-generate:packages
               # Node.js
               pkgs.nodejs_24
               pkgs.pnpm
               pkgs.typescript
+              # <<< flake-generate:packages
             ];
             shellHook = ''
               echo "[devShell:default] ready"
@@ -61,7 +62,6 @@ exports[`renderFlake > renders an empty devShell when nothing is detected 1`] = 
       systems = [
         "aarch64-darwin"
         "aarch64-linux"
-        "x86_64-darwin"
         "x86_64-linux"
       ];
 
@@ -73,7 +73,9 @@ exports[`renderFlake > renders an empty devShell when nothing is detected 1`] = 
           devShells.default = pkgs.mkShell {
             name = "empty";
             packages = [
+              # >>> flake-generate:packages
               # No ecosystem detected; add packages here.
+              # <<< flake-generate:packages
             ];
             shellHook = ''
               echo "[devShell:default] ready"

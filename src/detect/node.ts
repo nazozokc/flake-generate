@@ -8,7 +8,7 @@ import {
   toolMarkers,
   toolVersions,
 } from "./util.js";
-import { firstLine, majorVersion, NODE_ATTRIBUTES } from "./versions.js";
+import { firstLine, majorVersion, minimumMajorFromRange, versionedPackage } from "./versions.js";
 
 const LOCKFILES = [
   "pnpm-lock.yaml",
@@ -45,23 +45,20 @@ export function detectNode(probe: FsProbe): Detection | null {
     typeof engines === "object" && engines !== null && !Array.isArray(engines)
       ? stringField((engines as Record<string, unknown>).node)
       : undefined;
-  const version =
-    probe.readText(".nvmrc") ??
-    probe.readText(".node-version") ??
-    engineRange ??
-    toolVersions(probe).nodejs;
-  const major = majorVersion(firstLine(version));
-  const attribute = major === undefined ? undefined : NODE_ATTRIBUTES[major];
+  const pinned = firstLine(
+    probe.readText(".nvmrc") ?? probe.readText(".node-version") ?? toolVersions(probe).nodejs,
+  );
+  const major = pinned !== undefined ? majorVersion(pinned) : minimumMajorFromRange(engineRange);
 
   const packages: string[] = [];
   const notes: string[] = [];
-  if (attribute !== undefined) {
-    packages.push(attribute);
+  if (major !== undefined && major < 18) {
+    packages.push("pkgs.nodejs");
+    notes.push(`Node ${major} is too old for a versioned nixpkgs attribute; using nodejs`);
   } else {
-    packages.push("nodejs");
-    if (major !== undefined) {
-      notes.push(`Node ${major} has no known nixpkgs attribute; using nodejs`);
-    }
+    packages.push(
+      major === undefined ? "pkgs.nodejs" : versionedPackage(`nodejs_${major}`, "nodejs"),
+    );
   }
 
   if (manager === "pnpm" || manager === "yarn" || manager === "bun") packages.push(manager);

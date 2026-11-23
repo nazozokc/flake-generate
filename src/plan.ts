@@ -1,4 +1,5 @@
 import { assertWritableTarget, writeFileAtomic } from "./fs.js";
+import { hasManagedBlock, mergeManagedContent, renderEnvrc } from "./managed.js";
 import type { BuildPlanOptions, FsProbe, Plan, ProjectInfo, WriteAction } from "./types.js";
 
 export function buildPlan(
@@ -7,12 +8,27 @@ export function buildPlan(
   options: BuildPlanOptions,
   probe: FsProbe,
 ): Plan {
+  const existingFlake = probe.readText(options.output);
   const candidates: WriteAction[] = [
-    { kind: "write", path: options.output, label: "flake.nix", content: flake },
+    {
+      kind: "write",
+      path: options.output,
+      label: "flake.nix",
+      content: mergeManagedContent(existingFlake, flake),
+    },
   ];
   if (options.envrc) {
-    candidates.push({ kind: "write", path: ".envrc", label: ".envrc", content: "use flake\n" });
+    candidates.push({
+      kind: "write",
+      path: ".envrc",
+      label: ".envrc",
+      content: renderEnvrc(probe.readText(".envrc")),
+    });
   }
+
+  const updatable = new Set<string>();
+  if (hasManagedBlock(existingFlake)) updatable.add(options.output);
+  if (options.envrc) updatable.add(".envrc");
 
   const warnings = [...info.warnings];
   const actions: WriteAction[] = [];
@@ -22,10 +38,11 @@ export function buildPlan(
       warnings.push(`${candidate.path} is not a regular file; skipped`);
       continue;
     }
-    if (kind === "file" && !options.force) {
+    if (kind === "file" && !options.force && !updatable.has(candidate.path)) {
       warnings.push(`${candidate.path} already exists; skipped (use --force to overwrite)`);
       continue;
     }
+    if (probe.readText(candidate.path) === candidate.content) continue;
     actions.push(candidate);
   }
 

@@ -1,23 +1,33 @@
 import type { Detection, FsProbe } from "../types.js";
-import { existingMarkers } from "./util.js";
-import { ELIXIR_ATTRIBUTES, elixirMinorVersion } from "./versions.js";
+import { toolMarkers, toolVersions } from "./util.js";
+import { elixirMinorVersion, majorVersion, versionedPackage } from "./versions.js";
 
 export function detectElixir(probe: FsProbe): Detection | null {
-  const markers = existingMarkers(probe, ["mix.lock", "mix.exs"]);
+  const tools = toolVersions(probe);
+  const markers = toolMarkers(
+    probe,
+    "erlang",
+    toolMarkers(probe, "elixir", ["mix.lock", "mix.exs"]),
+  );
   if (markers.length === 0) return null;
 
-  const version = elixirMinorVersion(probe.readText("mix.exs"));
-  const attribute = version === undefined ? undefined : ELIXIR_ATTRIBUTES[version];
+  const version =
+    elixirMinorVersion(probe.readText("mix.exs")) ??
+    (tools.elixir === undefined ? undefined : majorVersion(tools.elixir));
+  const otp = majorVersion(tools.erlang) ?? 27;
   const notes: string[] = [];
-  if (version !== undefined && attribute === undefined) {
-    notes.push(`Elixir 1.${version} has no known nixpkgs attribute; using the pinned version`);
+  let elixir = "pkgs.elixir";
+  if (version !== undefined && version < 18) {
+    notes.push(`Elixir 1.${version} is too old for a versioned nixpkgs attribute; using elixir`);
+  } else if (version !== undefined) {
+    elixir = versionedPackage(`beam${otp}Packages.elixir_1_${version}`, "elixir");
   }
 
   return {
     ecosystem: "elixir",
     label: "Elixir",
     markers,
-    packages: [attribute ?? "beam27Packages.elixir_1_19"],
+    packages: [elixir],
     notes,
   };
 }
