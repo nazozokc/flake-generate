@@ -1,6 +1,17 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { CliError, packageVersion, parseArguments, usage } from "../cli.js";
+import { appendFile, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CliError, packageVersion, parseArguments, run, usage } from "../cli.js";
+
+const directories: string[] = [];
+
+afterEach(async () => {
+  for (const dir of directories.splice(0)) {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 describe("packageVersion", () => {
   it("follows package.json so releases never drift", () => {
@@ -76,5 +87,48 @@ describe("usage", () => {
   it("documents examples and exit codes", () => {
     expect(usage()).toContain("Examples:");
     expect(usage()).toContain("Exit codes:");
+  });
+});
+
+describe("run --check", () => {
+  it("accepts edits outside the managed block", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "flake-generate-managed-"));
+    directories.push(dir);
+    await writeFile(join(dir, "pnpm-lock.yaml"), "");
+
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      expect(await run([dir])).toBe(0);
+      await appendFile(join(dir, "flake.nix"), "\n# hand written\n");
+      stdout.mockClear();
+
+      expect(await run([dir, "--check"])).toBe(0);
+      const output = stdout.mock.calls.map(([chunk]) => String(chunk)).join("");
+      expect(output).toContain("up to date");
+    } finally {
+      stderr.mockRestore();
+      stdout.mockRestore();
+    }
+  });
+
+  it("reports and fails on a target it cannot write", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "flake-generate-check-"));
+    directories.push(dir);
+    await writeFile(join(dir, "target"), "keep\n");
+    await symlink(join(dir, "target"), join(dir, "flake.nix"));
+
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      expect(await run([dir, "--check"])).toBe(1);
+      const output = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+      expect(output).toContain("unwritable: flake.nix");
+      expect(output).toContain("not a regular file; skipped");
+      expect(stdout).not.toHaveBeenCalled();
+    } finally {
+      stderr.mockRestore();
+      stdout.mockRestore();
+    }
   });
 });

@@ -1,6 +1,6 @@
 import type { Detection, FsProbe } from "../types.js";
 import { toolMarkers, toolVersions } from "./util.js";
-import { firstLine, RUBY_ATTRIBUTES, rubyMinorVersion } from "./versions.js";
+import { firstLine, rubyMinorVersion, versionedPackage } from "./versions.js";
 
 export function detectRuby(probe: FsProbe): Detection | null {
   const tools = toolVersions(probe);
@@ -8,17 +8,13 @@ export function detectRuby(probe: FsProbe): Detection | null {
   if (markers.length === 0) return null;
 
   const version = rubyMinorVersion(firstLine(probe.readText(".ruby-version") ?? tools.ruby));
-  const attribute = version === undefined ? undefined : RUBY_ATTRIBUTES[version];
-  const notes: string[] = [];
-  if (version !== undefined && attribute === undefined) {
-    notes.push(`Ruby 3.${version} has no known nixpkgs attribute; using ruby`);
-  }
+  const ruby = version === undefined ? "pkgs.ruby" : versionedPackage(`ruby_3_${version}`, "ruby");
 
   return {
     ecosystem: "ruby",
     label: "Ruby",
     markers,
-    packages: ["bundler", attribute ?? "ruby"],
-    notes,
+    packages: ["bundler", ruby],
+    notes: [],
   };
 }
