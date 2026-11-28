@@ -11,7 +11,7 @@ project="$work/project"
 mkdir "$project"
 
 npm install --prefix "$project" --no-audit --no-fund "$work/$tarball"
-binary="$project/node_modules/.bin/flake-generate"
+binary="$project/node_modules/.bin/nix-flake-generate"
 expected="$(node -p 'require("./package.json").version')"
 
 actual="$("$binary" --version)"

@@ -32,7 +32,9 @@ describe("createUi", () => {
 
 describe("report lines", () => {
   it("renders a compact header", () => {
-    expect(header(createUi(false, false), "0.1.0", "/app")).toBe("◇ flake-generate v0.1.0 · /app");
+    expect(header(createUi(false, false), "0.1.0", "/app")).toBe(
+      "◇ nix-flake-generate v0.1.0 · /app",
+    );
   });
 
   it("shows markers only in verbose mode", () => {

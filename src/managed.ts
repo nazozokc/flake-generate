@@ -1,19 +1,41 @@
-import { PACKAGES_BEGIN, PACKAGES_END } from "./types.js";
+import {
+  LEGACY_PACKAGES_BEGIN,
+  LEGACY_PACKAGES_END,
+  PACKAGES_BEGIN,
+  PACKAGES_END,
+} from "./types.js";
 
 function linesOf(text: string): string[] {
   return text.split("\n");
 }
 
-function blockRange(lines: readonly string[]): { start: number; end: number } | undefined {
-  const start = lines.findIndex((line) => line.trim() === PACKAGES_BEGIN);
+function blockRange(
+  lines: readonly string[],
+  begins: readonly string[],
+  ends: readonly string[],
+): { start: number; end: number } | undefined {
+  const start = lines.findIndex((line) => begins.includes(line.trim()));
   if (start < 0) return undefined;
-  const end = lines.findIndex((line, index) => index > start && line.trim() === PACKAGES_END);
+  const end = lines.findIndex((line, index) => index > start && ends.includes(line.trim()));
   return end < 0 ? undefined : { start, end };
+}
+
+function generatedBlock(lines: readonly string[]) {
+  return blockRange(lines, [PACKAGES_BEGIN], [PACKAGES_END]);
+}
+
+/** Existing files may still use the markers from before the project rename. */
+function existingBlock(lines: readonly string[]) {
+  return blockRange(
+    lines,
+    [PACKAGES_BEGIN, LEGACY_PACKAGES_BEGIN],
+    [PACKAGES_END, LEGACY_PACKAGES_END],
+  );
 }
 
 /** Whether an existing file has a complete managed packages block. */
 export function hasManagedBlock(content: string | undefined): boolean {
-  return content !== undefined && blockRange(linesOf(content)) !== undefined;
+  return content !== undefined && existingBlock(linesOf(content)) !== undefined;
 }
 
 /**
@@ -24,17 +46,15 @@ export function mergeManagedContent(existing: string | undefined, generated: str
   if (existing === undefined) return generated;
 
   const generatedLines = linesOf(generated);
-  const generatedBlock = blockRange(generatedLines);
-  const existingBlock = blockRange(linesOf(existing));
-  if (generatedBlock === undefined || existingBlock === undefined) return generated;
+  const fresh = generatedBlock(generatedLines);
+  const current = existingBlock(linesOf(existing));
+  if (fresh === undefined || current === undefined) return generated;
 
-  const managed = generatedLines.slice(generatedBlock.start, generatedBlock.end + 1);
+  const managed = generatedLines.slice(fresh.start, fresh.end + 1);
   const original = linesOf(existing);
-  return [
-    ...original.slice(0, existingBlock.start),
-    ...managed,
-    ...original.slice(existingBlock.end + 1),
-  ].join("\n");
+  return [...original.slice(0, current.start), ...managed, ...original.slice(current.end + 1)].join(
+    "\n",
+  );
 }
 
 /** Keep an existing .envrc, appending 'use flake' only when it is missing. */

@@ -21,7 +21,7 @@ export type ParsedArguments =
   | { kind: "version" };
 
 const USAGE = [
-  "Usage: flake-generate [options] [dir]",
+  "Usage: nix-flake-generate [options] [dir]",
   "",
   "Generate a clean flake.nix from a project's lockfiles and markers.",
   "",
@@ -37,10 +37,10 @@ const USAGE = [
   "  -V, --version        show the version",
   "",
   "Examples:",
-  "  flake-generate                      generate flake.nix in the current directory",
-  "  flake-generate --stdout | head -20  preview before writing",
-  "  flake-generate -f --envrc           overwrite and add .envrc for direnv",
-  "  flake-generate --check              fail when the generated flake is stale",
+  "  nix-flake-generate                      generate flake.nix in the current directory",
+  "  nix-flake-generate --stdout | head -20  preview before writing",
+  "  nix-flake-generate -f --envrc           overwrite and add .envrc for direnv",
+  "  nix-flake-generate --check              fail when the generated flake is stale",
   "",
   "Exit codes:",
   "  0  success (or --check with no diff)",

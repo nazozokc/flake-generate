@@ -6,7 +6,7 @@
 
 ### Added
 
-- `.flake-generate.json` と `package.json` の `flake-generate` フィールドによる設定（`systems` / `nixpkgs` / `description` / `extraPackages` / `disabledDetectors`）。
+- `.nix-flake-generate.json` と `package.json` の `nix-flake-generate` フィールドによる設定（`systems` / `nixpkgs` / `description` / `extraPackages` / `disabledDetectors`）。旧名も読み込める。
 - `packages` 列の managed block。ブロック外のユーザー編集を保持する。
 - Go / Rust / Deno の固定バージョン読み取り、`engines.node` のレンジ解釈、Elixir の OTP 系列読み取り。
 - バージョン由来属性の `or` fallback と、全デフォルトシステムでの生成 flake eval。
@@ -14,6 +14,7 @@
 
 ### Changed
 
+- プロジェクト名・npm パッケージ・CLI コマンド・Nix パッケージを `flake-generate` から `nix-flake-generate` にリネーム。旧設定ファイル名・旧 managed マーカーは互換性のため引き続き受け付ける。
 - publish workflow はリリースタグで `package.json` を書き換えず、タグとバージョンの一致を検証する。
 - 既定 `systems` から `x86_64-darwin` を除外（nixpkgs unstable がサポート終了）。
 
@@ -49,6 +50,6 @@
 
 - ロックファイルと設定ファイルから `flake.nix` を生成する CLI。
 
-[0.2.0]: https://github.com/nazozokc/flake-generate/releases/tag/0.2.0
-[0.1.2]: https://github.com/nazozokc/flake-generate/releases/tag/0.1.2
-[0.1.1]: https://github.com/nazozokc/flake-generate/releases/tag/0.1.1
+[0.2.0]: https://github.com/nazozokc/nix-flake-generate/releases/tag/0.2.0
+[0.1.2]: https://github.com/nazozokc/nix-flake-generate/releases/tag/0.1.2
+[0.1.1]: https://github.com/nazozokc/nix-flake-generate/releases/tag/0.1.1
