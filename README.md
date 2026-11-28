@@ -1,4 +1,4 @@
-# flake-generate
+# nix-flake-generate
 
 カレントディレクトリのロックファイルと設定ファイルを読んで、環境に合った `flake.nix` を生成する CLI。
 
@@ -11,24 +11,24 @@
 インストール不要ですぐ使えます。
 
 ```sh
-bunx flake-generate
+bunx nix-flake-generate
 ```
 
 カレントディレクトリに `flake.nix` を生成します。
 
 ```sh
 # 任意のディレクトリを対象に
-bunx flake-generate ../my-app
+bunx nix-flake-generate ../my-app
 
 # 書き込まずに生成結果を表示
-bunx flake-generate --stdout
+bunx nix-flake-generate --stdout
 
 # 予定だけ表示
 （実際には書き込まない）
-bunx flake-generate --dry-run
+bunx nix-flake-generate --dry-run
 
 # 生成結果が古ければ失敗（CI 向け）
-bunx flake-generate --check
+bunx nix-flake-generate --check
 ```
 
 ## インストール
@@ -37,24 +37,24 @@ bunx flake-generate --check
 
 ```sh
 # npx
-npx flake-generate
+npx nix-flake-generate
 
 # グローバルインストール
-npm install -g flake-generate
-bun add -g flake-generate
+npm install -g nix-flake-generate
+bun add -g nix-flake-generate
 
 # Nix
-nix run github:nazozokc/flake-generate -- .
+nix run github:nazozokc/nix-flake-generate -- .
 ```
 
 ## 使い方
 
 ```sh
-flake-generate                # カレントに flake.nix を生成
-flake-generate ../my-app      # 任意のディレクトリを対象にする
-flake-generate --stdout       # 書き込まずに生成結果を表示
-flake-generate --dry-run      # 書き込む予定のファイルだけ表示
-flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
+nix-flake-generate                # カレントに flake.nix を生成
+nix-flake-generate ../my-app      # 任意のディレクトリを対象にする
+nix-flake-generate --stdout       # 書き込まずに生成結果を表示
+nix-flake-generate --dry-run      # 書き込む予定のファイルだけ表示
+nix-flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
 ```
 
 | オプション            | 説明                                                       |
@@ -87,7 +87,7 @@ flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
 ### 出力例
 
 ```text
-◇ flake-generate v0.2.0 · /path/to/app
+◇ nix-flake-generate v0.2.0 · /path/to/app
 
 ◆ Node.js         pkgs.nodejs_24 or pkgs.nodejs, pnpm, typescript
 ◆ Rust            cargo, clippy, rust-analyzer, rustc, rustfmt
@@ -101,7 +101,8 @@ flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
 
 ### 設定と編集の保持
 
-`.flake-generate.json` があればそれを読み、無ければ `package.json` の `flake-generate` フィールドを使う。
+`.nix-flake-generate.json` があればそれを読み、無ければ `package.json` の `nix-flake-generate` フィールドを使う。
+リネーム前の `.flake-generate.json` / `flake-generate` フィールドも読み込める。
 
 ```json
 {
@@ -125,14 +126,15 @@ flake-generate --check        # 生成結果が古ければ失敗（CI 向け）
 
 ```nix
 packages = [
-  # >>> flake-generate:packages
+  # >>> nix-flake-generate:packages
   # Node.js
   pkgs.nodejs_24 or pkgs.nodejs
-  # <<< flake-generate:packages
+  # <<< nix-flake-generate:packages
 ];
 ```
 
 再生成時はこの間だけが差し替わる。 inputs、shellHook、コメントなどのブロック外の編集は保持される。
+リネーム前の `flake-generate:packages` マーカー付きファイルも同じように更新され、再生成時に新しいマーカーへ置き換わる。
 `--check` もマージ後の内容を比較するので、ブロック外の編集では失敗しない。
 マーカーが無い、または片方だけのファイルは通常の既存ファイルとして扱われ、更新には `--force` が必要。
 

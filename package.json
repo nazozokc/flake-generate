@@ -1,14 +1,14 @@
 {
-  "name": "flake-generate",
+  "name": "nix-flake-generate",
   "version": "0.3.3",
   "description": "Analyze a project directory and generate a clean, editable flake.nix",
   "type": "module",
   "bin": {
-    "flake-generate": "dist/index.js"
+    "nix-flake-generate": "dist/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nazozokc/flake-generate.git"
+    "url": "https://github.com/nazozokc/nix-flake-generate.git"
   },
   "files": [
     "dist"

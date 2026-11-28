@@ -36,7 +36,7 @@ export function createUi(verbose: boolean, colorOverride?: boolean): Ui {
 export function header(ui: Ui, version: string, dir: string): string {
   return [
     ui.style("dim", "◇"),
-    ui.style("bold", "flake-generate"),
+    ui.style("bold", "nix-flake-generate"),
     ui.style("dim", `v${version} · ${dir}`),
   ].join(" ");
 }

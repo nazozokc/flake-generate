@@ -88,19 +88,27 @@ function parseConfig(value: unknown): Config {
   return config;
 }
 
-/** Load .flake-generate.json, falling back to the 'flake-generate' field in package.json. */
+const CONFIG_FILES = [".nix-flake-generate.json", ".flake-generate.json"] as const;
+const CONFIG_FIELDS = ["nix-flake-generate", "flake-generate"] as const;
+
+/** Load .nix-flake-generate.json (legacy .flake-generate.json), then the matching package.json field. */
 export function loadConfig(probe: FsProbe): Config {
-  const text = probe.readText(".flake-generate.json");
-  if (text !== undefined) {
+  for (const name of CONFIG_FILES) {
+    const text = probe.readText(name);
+    if (text === undefined) continue;
     let raw: unknown;
     try {
       raw = JSON.parse(text) as unknown;
     } catch {
-      throw new CliError("invalid .flake-generate.json", "expected valid JSON");
+      throw new CliError(`invalid ${name}`, "expected valid JSON");
     }
     return parseConfig(raw);
   }
 
   const pkg = probe.readJson("package.json");
-  return parseConfig(isRecord(pkg) ? pkg["flake-generate"] : undefined);
+  if (!isRecord(pkg)) return parseConfig(undefined);
+  const value = CONFIG_FIELDS.map((field) => pkg[field]).find(
+    (candidate) => candidate !== undefined,
+  );
+  return parseConfig(value);
 }

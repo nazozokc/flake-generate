@@ -6,13 +6,13 @@ import { generate } from "../cli.js";
 import { assertWritableTarget, createNodeFsProbe, writeFileAtomic } from "../fs.js";
 import { applyPlan, buildPlan, diffPlan, diffText } from "../plan.js";
 import { renderFlake } from "../render/flake.js";
-import type { Plan } from "../types.js";
+import { LEGACY_PACKAGES_BEGIN, LEGACY_PACKAGES_END, type Plan } from "../types.js";
 import { fakeProbe } from "./helpers.js";
 
 const directories: string[] = [];
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "flake-generate-"));
+  const dir = await mkdtemp(join(tmpdir(), "nix-flake-generate-"));
   directories.push(dir);
   return dir;
 }
@@ -64,6 +64,28 @@ describe("buildPlan", () => {
     );
 
     expect(plan.actions).toEqual([]);
+  });
+
+  it("updates legacy markers and keeps edits outside the block", () => {
+    const generated = renderFlake(info);
+    const existing = generated
+      .replace("# >>> nix-flake-generate:packages", LEGACY_PACKAGES_BEGIN)
+      .replace("# <<< nix-flake-generate:packages", LEGACY_PACKAGES_END)
+      .replace(
+        "            shellHook = ''",
+        "            # hand written\n            shellHook = ''",
+      );
+    const probe = fakeProbe({ "flake.nix": existing });
+    const plan = buildPlan(
+      info,
+      generated,
+      { output: "flake.nix", force: false, envrc: false },
+      probe,
+    );
+
+    expect(plan.actions).toHaveLength(1);
+    expect(plan.actions[0]?.content).toContain("# >>> nix-flake-generate:packages");
+    expect(plan.actions[0]?.content).toContain("# hand written");
   });
 
   it("skips an unmanaged file unless forced", () => {
@@ -257,12 +279,12 @@ describe("generate", () => {
     ).rejects.toThrow("cannot be used with -o .envrc");
   });
 
-  it("applies .flake-generate.json config", async () => {
+  it("applies .nix-flake-generate.json config", async () => {
     const dir = await tempDir();
     await writeFile(join(dir, "pnpm-lock.yaml"), "");
     await writeFile(join(dir, "Cargo.toml"), "");
     await writeFile(
-      join(dir, ".flake-generate.json"),
+      join(dir, ".nix-flake-generate.json"),
       JSON.stringify({
         systems: ["x86_64-linux"],
         nixpkgs: "github:NixOS/nixpkgs/25.05",
@@ -296,7 +318,7 @@ describe("generate", () => {
     await writeFile(join(dir, "pnpm-lock.yaml"), "");
     await writeFile(
       join(dir, "package.json"),
-      JSON.stringify({ "flake-generate": { extraPackages: ["jq"] } }),
+      JSON.stringify({ "nix-flake-generate": { extraPackages: ["jq"] } }),
     );
 
     const result = await generate({
@@ -310,9 +332,34 @@ describe("generate", () => {
     expect(result.flake).toContain("pkgs.jq");
   });
 
+  it("still reads the legacy config file and package.json field", async () => {
+    const fileDir = await tempDir();
+    await writeFile(join(fileDir, "pnpm-lock.yaml"), "");
+    await writeFile(join(fileDir, ".flake-generate.json"), '{"extraPackages": ["hello"]}');
+
+    const fieldDir = await tempDir();
+    await writeFile(join(fieldDir, "pnpm-lock.yaml"), "");
+    await writeFile(
+      join(fieldDir, "package.json"),
+      '{"flake-generate": {"extraPackages": ["jq"]}}',
+    );
+
+    const input = {
+      output: "flake.nix",
+      force: false,
+      envrc: false,
+      dryRun: true,
+      stdout: false,
+    };
+    const fromFile = await generate({ ...input, dir: fileDir });
+    const fromField = await generate({ ...input, dir: fieldDir });
+    expect(fromFile.flake).toContain("pkgs.hello");
+    expect(fromField.flake).toContain("pkgs.jq");
+  });
+
   it("rejects an invalid config", async () => {
     const dir = await tempDir();
-    await writeFile(join(dir, ".flake-generate.json"), '{"bogus": true}');
+    await writeFile(join(dir, ".nix-flake-generate.json"), '{"bogus": true}');
 
     await expect(
       generate({

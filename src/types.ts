@@ -16,8 +16,10 @@ export const DEFAULT_SYSTEMS = ["aarch64-darwin", "aarch64-linux", "x86_64-linux
 
 export const DEFAULT_NIXPKGS = "github:NixOS/nixpkgs/nixos-unstable";
 
-export const PACKAGES_BEGIN = "# >>> flake-generate:packages";
-export const PACKAGES_END = "# <<< flake-generate:packages";
+export const PACKAGES_BEGIN = "# >>> nix-flake-generate:packages";
+export const PACKAGES_END = "# <<< nix-flake-generate:packages";
+export const LEGACY_PACKAGES_BEGIN = "# >>> flake-generate:packages";
+export const LEGACY_PACKAGES_END = "# <<< flake-generate:packages";
 
 export interface RenderOptions {
   systems?: readonly string[];

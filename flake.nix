@@ -1,5 +1,5 @@
 {
-  description = "flake-generate development environment";
+  description = "nix-flake-generate development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -26,7 +26,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           version = (builtins.fromJSON (builtins.readFile "${self}/package.json")).version;
           package = pkgs.stdenv.mkDerivation {
-            pname = "flake-generate";
+            pname = "nix-flake-generate";
             inherit version;
             src = self;
             nativeBuildInputs = [
@@ -37,28 +37,28 @@
               runHook preBuild
               esbuild src/index.ts \
                 --bundle --platform=node --format=esm --target=node20 \
-                --outfile=flake-generate.js
+                --outfile=nix-flake-generate.js
               runHook postBuild
             '';
             installPhase = ''
               runHook preInstall
-              install -Dm755 flake-generate.js $out/bin/flake-generate
+              install -Dm755 nix-flake-generate.js $out/bin/nix-flake-generate
               install -Dm644 package.json $out/package.json
               runHook postInstall
             '';
-            meta.mainProgram = "flake-generate";
+            meta.mainProgram = "nix-flake-generate";
           };
         in
         {
           packages.default = package;
           apps.default = {
             type = "app";
-            program = "${package}/bin/flake-generate";
+            program = "${package}/bin/nix-flake-generate";
             meta.description = "Generate a clean flake.nix from project markers";
           };
 
           devShells.default = pkgs.mkShell {
-            name = "flake-generate";
+            name = "nix-flake-generate";
             packages = [
               pkgs.nodejs_24
               pkgs.pnpm
