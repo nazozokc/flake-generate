@@ -1,6 +1,6 @@
 {
   "name": "nix-flake-generate",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "description": "Analyze a project directory and generate a clean, editable flake.nix",
   "type": "module",
   "bin": {
