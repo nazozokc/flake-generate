@@ -42,21 +42,19 @@ jobs:
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release version
+      - name: Set version from release tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          node -e '
-            const fs = require("node:fs");
-            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          npm version "$VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
 
-            if (pkg.version !== process.env.VERSION) {
-              console.error("package.json version " + pkg.version + " does not match release " + process.env.VERSION);
-              process.exit(1);
-            }
+          ACTUAL="$(node -p "require('./package.json').version")"
+          if [[ "$ACTUAL" != "$VERSION" ]]; then
+            echo "::error::package.json version ${ACTUAL} does not match release ${VERSION}"
+            exit 1
+          fi
 
-            console.log("version -> " + pkg.version);
-          '
+          echo "version -> $ACTUAL"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
